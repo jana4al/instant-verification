@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera PWA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 10px;
+      background-color: #f0f0f0;
+    }
+    video, canvas {
+      max-width: 100%;
+      border: 2px solid #333;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    canvas {
+      display: none;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #status {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+  <!-- Embedded Web App Manifest -->
+  <link rel="manifest" href="data:application/manifest+json,{
+    \"name\": \"Camera PWA\",
+    \"short_name\": \"Camera\",
+    \"start_url\": \".\",
+    \"display\": \"standalone\",
+    \"background_color\": \"#ffffff\",
+    \"theme_color\": \"#007bff\",
+    \"icons\": [
+      {
+        \"src\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAJ5JREFUWEftksENgCAMRNG7gY5gQToEidIBdAgT4Al0BBPSIUzIl2fW+5W0aW3bti0z3X0P2SSO48e8mM/nl3P3g4kL8fjjj8fTDyYuROOPPx5PP5i4EI8//ng8/WDiQjz++OPx9IOJC/H444/H0w8mLsTjjz8eTz+YuBCPP/54PP1g4kI8/vjj8fSDiQvx+ OOPx9MPJi5E44+/7r4B7d9gIwsYx0gAAAAASUVORK5CYII=\",
+        \"sizes\": \"32x32\",
+        \"type\": \"image/png\"
+      }
+    ]
+  }">
+</head>
+<body>
+  <video id="video" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <button onclick="startCamera()">Start Camera</button>
+  <button onclick="captureImage()">Take Picture</button>
+  <button onclick="downloadImage()">Download Picture</button>
+  <div id="status"></div>
+  <script>
+    let currentImage = null;
+    const status = document.getElementById('status');
+
+    // Check camera permission status
+    async function checkCameraPermission() {
+      if ('permissions' in navigator) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+          return permissionStatus.state; // 'granted', 'prompt', or 'denied'
+        } catch (err) {
+          console.error('Permission API error:', err);
+          return 'unknown';
+        }
+      }
+      return 'unknown';
+    }
+
+    // Start camera with permission handling
+    async function startCamera() {
+      status.textContent = 'Checking camera permission...';
+      const permission = await checkCameraPermission();
+
+      if (permission === 'granted') {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          const video = document.getElementById('video');
+          video.srcObject = stream;
+          video.play();
+          status.textContent = 'Camera started!';
+        } catch (err) {
+          status.textContent = 'Error accessing camera: ' + err.message;
+        }
+      } else if (permission === 'denied') {
+        status.textContent = 'Camera access denied. Please allow camera access in your browser settings and try again.';
+      } else {
+        // Permission is 'prompt' or 'unknown', try to request access
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          const video = document.getElementById('video');
+          video.srcObject = stream;
+          video.play();
+          status.textContent = 'Camera started!';
+        } catch (err) {
+          if (err.name === 'NotAllowedError') {
+            status.textContent = 'Camera access denied. Please allow camera access when prompted or in your browser settings.';
+          } else {
+            status.textContent = 'Error accessing camera: ' + err.message;
+          }
+        }
+      }
+    }
+
+    // Capture image from video
+    function captureImage() {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+      if (video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        currentImage = canvas.toDataURL('image/jpeg');
+        status.textContent = 'Image captured!';
+      } else {
+        status.textContent = 'No active camera stream to capture.';
+      }
+    }
+
+    // Download captured image
+    function downloadImage() {
+      if (currentImage) {
+        const link = document.createElement('a');
+        link.href = currentImage;
+        link.download = 'photo.jpg';
+        link.click();
+        status.textContent = 'Image downloaded!';
+      } else {
+        status.textContent = 'No image captured yet!';
+      }
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('data:application/javascript,addEventListener("install", () => self.skipWaiting());addEventListener("activate", () => self.clients.claim());addEventListener("fetch", (event) => event.respondWith(fetch(event.request)));')
+        .then(() => console.log('Service Worker Registered'))
+        .catch(err => console.error('Service Worker Error:', err));
+    }
+  </script>
+</body>
+</html>
